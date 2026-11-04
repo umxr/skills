@@ -1,0 +1,4 @@
+[submodule "vendor/security-audit-skill"]
+	path = vendor/security-audit-skill
+	url = https://github.com/cloudflare/security-audit-skill
+	branch = main

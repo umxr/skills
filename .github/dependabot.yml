@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Opens a PR when an upstream skill submodule in vendor/ has new commits.
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "Update upstream skill"
