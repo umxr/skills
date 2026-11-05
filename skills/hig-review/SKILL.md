@@ -1,174 +1,123 @@
 ---
 name: hig-review
-description: Review an iOS app's entire UI and interactions against Apple's Human Interface Guidelines, propose brand-preserving changes for approval, then implement them with subagents. Use when asked to audit or fix an app for HIG compliance, native iOS feel or iOS accessibility.
+description: Review an iOS app's entire UI and interactions against Apple's Human Interface Guidelines, propose brand-preserving changes for approval, then implement them. A review orchestrator agent runs specialist subagents (one per HIG area), and an implementation orchestrator runs the fixes, so the main conversation stays light. Use when asked to audit or fix an app for HIG compliance, native iOS feel or iOS accessibility.
 argument-hint: "[scope, e.g. 'onboarding checkout' — empty = whole app]"
 disable-model-invocation: true
 ---
 
-# HIG review (brand-preserving)
+# HIG review (brand-preserving, orchestrated)
 
 Bring this app's **UI and every interaction** in line with Apple's Human Interface Guidelines (HIG), so it feels native, accessible and predictable **without diluting its brand**. The deliverable is **the implemented changes**, not a report.
 
 **Scope:** `$ARGUMENTS` (trimmed). Empty = the whole app.
 
-**Process:**
-1. **Review.** Produce `.hig-review/HIG_REVIEW.md`, an internal task list for you and your subagents, not a document for me.
-2. **Propose.** Present the planned changes to me and **stop until I approve or amend it**.
-3. **Implement** the approved plan with subagents.
-4. **Verify** the changes and report back.
+## Who does what
 
-**Until I approve the plan:** write only under `.hig-review/` and do not modify app code.
+A full review reads hundreds of files, fetches many HIG pages and takes many screenshots. If all of that ran in the main conversation, its context would fill up long before the work was done. So the work runs in agents, and the main conversation only coordinates:
 
----
+```
+Main conversation (you)        status checks, approval gate, final hand-back
+├─ Review orchestrator         Phases 0–4 → writes the plan, returns the proposal
+│   └─ Area specialists ×5     one per HIG area group, read-only, report to the orchestrator
+└─ Implementation orchestrator Phases 6–7 → implements, verifies, returns the report
+    └─ Implementers            one per batch of tasks, each owns separate files
+```
 
-## Rules (follow these above everything else)
+Subagents can't ask the user anything (Claude Code removes `AskUserQuestion` from them). That is why the approval gate sits in the main conversation, between the two orchestrators, and why there are two orchestrators rather than one.
 
-1. **Coverage is exhaustive, reporting is deduplicated.** Review every screen, sheet and state in scope. An issue that appears on many screens is reported **once**, at the component or token level that causes it.
-2. **Evidence or it isn't a finding.** Each finding needs a `file:line` from a Read or Grep you ran **this session**, a quote of the offending code (≤2 lines) or a screenshot path, and a source quote from `.hig-review/sources.md`. If you can't produce both, log it as `uncertain`.
-3. **Cite the real source.** HIG rules cite the HIG page. Contrast ratios cite WCAG. Login and account-deletion rules cite the App Store Review Guidelines. Never cite rules from memory. Fetch them first (Phase 1).
-4. **Brand isn't a problem to fix.** Don't recommend making the app look like stock iOS. Apply the brand tests below to every finding before classifying it.
-5. **Static review is labelled.** Anything about feel, timing, gesture conflicts or performance that you didn't observe in a running app gets `Confidence: static`. Don't present it as fact.
-6. **Don't skip silently.** If you can't review something, log `skipped: <reason>` in the inventory.
-7. **Approval gate.** No app code changes before I've approved or amended the Phase 5 proposal. After that, implement only what's in the approved `HIG_REVIEW.md`.
+**Your job in the main conversation** is small on purpose:
+- start the orchestrators and wait for them;
+- present the proposal and collect approval;
+- check git before implementation starts;
+- relay the final report.
 
----
+Don't read app code, fetch HIG pages, take screenshots or edit app files yourself. The orchestrators do that, and they keep their working state on disk in `.hig-review/`. If you do their work, you lose the benefit of the split.
 
-## The brand principle
+**Until the user approves the plan,** nothing writes outside `.hig-review/`, and no agent modifies app code (see `references/principles.md`, rule 7).
 
-The HIG wants brand expression: voice, colour, custom fonts, imagery, motion. But it wants that expression to **defer to content and not change platform behaviour**. Per HIG *Branding*:
-- accent colour is applied judiciously (primary actions, selection, status), not painted on every control;
-- custom fonts suit headlines, while body text stays highly legible and supports Dynamic Type and Bold Text;
-- logos aren't repeated throughout the UI, and the launch screen isn't used for branding.
+## Paths you pass to agents
 
-**Appearance can carry the brand. Behaviour follows the platform.**
+- `SKILL_DIR`: this skill's base directory (shown when the skill loaded). Agents read their briefs from it, so always pass the absolute path.
+- `PROJECT_DIR`: the app's repo root (the current working directory).
+- `SCOPE`: the trimmed `$ARGUMENTS`, or `whole app`.
 
-### Brand tests (apply in order)
-1. **Is it really brand?** It must come from the token system or brand guidelines and be used consistently. A one-off value that bypasses the tokens is drift, so classify it as **Fix**.
-2. **Does it change behaviour?** If a custom element looks different but behaves like its native equivalent (swipe-back, scroll-to-top, VoiceOver traits, Dynamic Type, hit area), it's **Keep**. If it changes what users can predict or do, it can't be Keep.
-3. **Does it pass accessibility?** Brand never excuses contrast, Dynamic Type, VoiceOver or Reduce Motion failures. These are **Fix** or **Adapt**, never Keep.
-4. **Is it a signature brand element?** If the compliant fix would alter a named brand asset or signature interaction (custom tab bar, celebration animation, brand-coloured chrome), it's **Discuss**. Give two options and your recommendation.
+## Step 1: Check state and resume
 
-| Bucket | Meaning | Must include |
-|---|---|---|
-| **Fix** | HIG or accessibility issue; the fix doesn't touch brand identity | file:line, change |
-| **Adapt** | Issue whose fix must be expressed in the brand's style | the brand token or component the fix uses |
-| **Keep** | Non-standard but legitimate brand expression | where the brand intent comes from (token or guideline) |
-| **Discuss** | Real tension between brand and HIG | 2 options, trade-offs, your recommendation |
+Look at `.hig-review/` with `ls` only. Don't read the large files.
 
-Don't raise "adopt system materials or Liquid Glass" as a finding on its own. Flag custom chrome only when it fails to **behave** natively, or when it breaks the HIG's materials guidance in a way users would notice.
+| What exists | Go to |
+|---|---|
+| nothing, or no `proposal.md` | Step 2 (the review orchestrator resumes a partial review by itself) |
+| `proposal.md`, no `approval.md` | Step 3 (read `proposal.md` and present it again) |
+| `approval.md`, no `report.md` | Step 4 (the implementation orchestrator resumes from tasks not yet `done`) |
+| `report.md` | Step 5 (read it and present it; ask whether to start a fresh review) |
 
----
+## Step 2: Run the review orchestrator
 
-## Workflow
+Spawn one `general-purpose` agent with this prompt (fill in the paths):
 
-Keep state on disk so large apps don't overflow context and an interrupted run can resume. If `.hig-review/` already exists, resume from it:
-- If the `HIG_REVIEW.md` plan status is `proposed`, re-present Phase 5 and wait.
-- If it's `approved`, continue Phase 6 from tasks not yet `done`.
+> You are the HIG review orchestrator. Read `<SKILL_DIR>/agents/review-orchestrator.md` and follow it exactly.
+> SKILL_DIR: `<SKILL_DIR>` · PROJECT_DIR: `<PROJECT_DIR>` · SCOPE: `<SCOPE>`
+> You can't ask the user anything. When you need a decision, record it as a Discuss item or an open question in the proposal.
+> Return only the proposal text described in the brief.
 
-### Phase 0: Discover
-Write `.hig-review/inventory.md`:
-- **Stack:** framework (SwiftUI / UIKit / React Native / Expo / Flutter), navigation library, styling system, min iOS version and SDK, supported devices and orientations.
-- **Brand summary:** 3–5 bullets drawn from the tokens/theme files and any brand guidelines (colours incl. dark variants, type scale and fonts, spacing, radii, iconography, illustration, motion, haptics, voice). This is what you must preserve.
-- **Navigation map:** tabs, stacks, modals, deep links, and how each screen is reached and dismissed.
-- **Screen table:** one row per screen, sheet, alert and state (loading, empty, error, offline and permission-denied **only where that state can occur**). Columns: `path | flow | status: pending`.
-- **Interaction inventory:** every tappable or gesture-driven element, form, list action, refresh, keyboard flow, haptic and animation, with file references.
-- **Shared components and tokens:** buttons, inputs, headers, cards, list rows, tab bar, sheets. Most fixes will land here.
+Tell the user in one line that the review is running and what will come back. Then wait for the result. Don't start review work of your own while it runs.
 
-### Phase 1: Sources
-Read `references/hig-sources.md` and follow it. Write `.hig-review/sources.md`: for each checklist area, the source URL plus 2–5 verbatim quotes you'll cite. This is the only place findings may quote from.
+When the result arrives, check that `.hig-review/proposal.md` and `.hig-review/HIG_REVIEW.md` exist. If the orchestrator failed or stopped early, tell the user what it reported and offer to run it again. It resumes from its files.
 
-### Phase 2: Run the app (if possible)
-If `xcrun` is available (macOS):
-1. Build and boot: `npx expo run:ios` / `xcodebuild` + `xcrun simctl`.
-2. Reach each screen via `xcrun simctl openurl booted <deeplink>`, a Maestro flow, or manual navigation.
-3. Screenshot every screen in its default variant: `xcrun simctl io booted screenshot .hig-review/shots/before/<screen>-<variant>.png`, then Read the image. These are the baselines for Phase 7, so never overwrite them.
-4. Extra variants for key screens:
-   - `xcrun simctl ui booted appearance dark`
-   - `xcrun simctl ui booted content_size accessibility-extra-extra-extra-large`
-   - `xcrun simctl ui booted increase_contrast enabled`
-   - small (iPhone SE) and large devices; iPad if supported.
+## Step 3: Propose (approval gate)
 
-If the build fails twice or takes more than ~10 minutes, stop trying, review statically and mark affected findings `Confidence: static`. Don't use web or Playwright previews as a stand-in for iOS behaviour.
+Present the proposal to the user as the orchestrator returned it (or from `proposal.md` on resume). It's already written for a person: headline, planned changes, decisions needed, kept on purpose, out of scope / uncertain. Don't paste `HIG_REVIEW.md`.
 
-### Phase 3: Review by flow
-Review against `references/checklist.md`. Record findings using the schema in `references/task-format.md`.
-- Group screens into flows of ≤8 screens (e.g. onboarding, auth, core task, purchase, settings).
-- For more than ~10 screens, **spawn one subagent per flow** (in parallel where possible). Give each: the brand summary and brand tests, `sources.md`, its screen list, the paths to `references/checklist.md` and `references/task-format.md` (subagents read them directly), and this rule: *"You are read-only: write only `.hig-review/findings/<flow>.md`. Never edit app code."* Each returns a count by severity plus any `skipped: <reason>` rows.
-- Review shared components and tokens once, in their own pass (`findings/components.md`).
-- The main agent alone updates `inventory.md` (`reviewed` or `skipped: <reason>`). **Don't start Phase 4 while any row is `pending`.**
+Then ask (use AskUserQuestion if available): **approve all**, or say what to change.
 
-### Phase 4: Build the task list
-Deduplicate. Merge issues seen on 3+ screens into a single component- or token-level finding listing the affected screens. Then turn findings into tasks in `.hig-review/HIG_REVIEW.md` (format in `references/task-format.md`).
+- **Approve all:** Discuss items take the recommended option.
+- **Changes requested** (drop, add, re-scope, pick a different Discuss option, keep something as brand): confirm the delta back in one or two lines. Ask again only if the changes are ambiguous or conflict with each other.
+- **A question, a "no" or a "wait":** answer it and stay in Step 3. The gate stays closed.
 
-### Phase 5: Propose (approval gate)
-Present the plan to me in chat. Keep it scannable. Don't paste `HIG_REVIEW.md`.
-1. **Headline:** total tasks by severity, files and components touched, and anything that will visibly change the look.
-2. **Planned changes,** grouped by component/token (one line each: task ID, what changes, screens affected). Fix and Adapt items are listed together, and Adapt items say which brand token or component they use.
-3. **Decisions needed:** each Discuss item with its options and your recommendation.
-4. **Kept on purpose:** brand choices you're leaving alone, one line each.
-5. **Out of scope / uncertain:** items you won't touch without device checks or more info.
+When the user has approved or requested changes, write `.hig-review/approval.md`:
 
-Then ask me (use AskUserQuestion if available): **approve all**, or tell you what to change.
-- **If I approve all:** Discuss items take your recommended option. Set plan status to `approved` and proceed to Phase 6.
-- **If I request changes** (drop, add, re-scope, pick a different Discuss option, keep something as brand): update `HIG_REVIEW.md` to match. Briefly confirm the delta in one or two lines, set plan status to `approved`, and proceed to Phase 6. Don't re-ask unless my changes are ambiguous or conflict with each other.
+```
+Decision: approve all | approve with changes
+Date: <YYYY-MM-DD>
+User's words: <verbatim reply>
+Changes:
+- <one line per change, e.g. "drop HIG-014", "HIG-021 → option B", "keep custom tab bar as brand">
+```
 
-Never start Phase 6 until I've approved all or requested changes. If my reply is a question, a "no" or a "wait", answer it and stay in Phase 5.
+Don't edit `HIG_REVIEW.md` yourself. The implementation orchestrator applies `approval.md` to it first, so the plan and the approval can't drift apart.
 
-### Phase 6: Implement
-**Setup**
-- Run `git status`. If there are uncommitted changes, stop and ask me.
-- Add `.hig-review/` to `.git/info/exclude`.
-- Create branch `hig-fixes/<YYYY-MM-DD>`. Never commit to the default branch.
+## Step 4: Run the implementation orchestrator
 
-**Waves**
-- Run in order: **tokens/theme → shared components → screen-specific tasks.**
-- A task starts only when everything in its `Depends on` is `done`.
-- If a dependency is `blocked`, mark its dependents `blocked: depends on HIG-xxx`.
-- Tokens and theme files are done by one agent before anything else starts.
+**Git preflight first** (you own this because it can need the user): run `git status --porcelain`, ignoring `.hig-review/`. If there are uncommitted changes, stop and ask the user how to proceed. Don't stash or commit them yourself.
 
-**Subagents**
-- Within a wave, parallelise with **non-overlapping file ownership:** each subagent gets a batch of tasks plus an explicit list of files it owns, and edits nothing else.
-- Give each subagent:
-  - the brand summary and brand tests;
-  - `sources.md`;
-  - the "Kept on purpose" list;
-  - its tasks (copied from `HIG_REVIEW.md`);
-  - its owned file list;
-  - these rules: fix the root cause at the lowest shared level; no unrelated refactors; don't change brand token values unless an approved task says so.
-- Each subagent:
-  - implements its tasks;
-  - runs lint and related tests **on its own files only** (e.g. `jest --findRelatedTests <files>`);
-  - reports typecheck errors outside its files without fixing them;
-  - **does not commit and does not edit `HIG_REVIEW.md`;**
-  - returns `task ID → done | blocked: <reason> → files changed`.
+Then spawn one `general-purpose` agent:
 
-**Main agent only**
-- After each wave, run the full typecheck, lint and tests.
-- Commit each task serially with `git add <that task's files>` (never `git add -A`), message `hig: <ID> <summary>`.
-- Update `Owner`/`Status` in `HIG_REVIEW.md`.
+> You are the HIG implementation orchestrator. Read `<SKILL_DIR>/agents/implementation-orchestrator.md` and follow it exactly.
+> SKILL_DIR: `<SKILL_DIR>` · PROJECT_DIR: `<PROJECT_DIR>`
+> The git working tree was clean when you started. You can't ask the user anything: when a task needs a decision, mark it `blocked: <question>` and continue.
+> Return only the final report described in the brief.
 
-**Scope control**
-- If a task turns out bigger or riskier than planned (e.g. a dependency upgrade or a navigation rewrite), mark it `blocked` and continue. Don't improvise a larger change.
+Tell the user in one line that implementation is running. Then wait.
 
-**Native config**
-- *Expo:* if `ios/` is generated (Continuous Native Generation (CNG) / gitignored), put native changes (Info.plist, icons, launch screen, purpose strings) in `app.json` / `app.config.*` or a config plugin, never in `ios/`. Native changes need `npx expo prebuild` plus a rebuild, not a Metro reload.
+## Step 5: Hand back
 
-### Phase 7: Verify and hand back
-- Run the full typecheck, lint and test suite.
-- If the app runs, rebuild and re-screenshot affected screens to `.hig-review/shots/after/` in the same variants as Phase 2. Check every task's acceptance criteria, and confirm nothing regressed in brand appearance (compare before and after screenshots).
-- Reopen any task that fails verification and fix it.
-- Final message to me:
-  - what changed (by area);
-  - before/after screenshot paths for visible changes;
-  - blocked or skipped tasks and why;
-  - items needing an on-device check;
-  - the branch name.
+Relay the orchestrator's final report (also in `.hig-review/report.md`):
+- what changed (by area);
+- before/after screenshot paths for visible changes;
+- blocked or skipped tasks and why, including any `blocked: <question>` items that need the user's answer;
+- items needing an on-device check;
+- the branch name.
 
-  Keep it short. `HIG_REVIEW.md` holds the detail.
+Keep it short. `HIG_REVIEW.md` holds the detail. If tasks are blocked on questions, ask them now. Once the user answers, update `approval.md` and run Step 4 again; the orchestrator picks up only the open tasks.
 
----
+## Files in this skill
 
-## Reference files
-- `references/checklist.md`: the 13-area review checklist plus stack-specific lookups. Read before Phase 3.
-- `references/hig-sources.md`: how to fetch the HIG (JSON endpoints, slugs) and which sources to cite. Read in Phase 1.
-- `references/task-format.md`: finding schema, severity, confidence and the `HIG_REVIEW.md` task format. Read before Phase 3.
+- `agents/review-orchestrator.md`: Phases 0–4. Discovery, sources, simulator runs, specialists, dedup, plan, proposal.
+- `agents/area-specialist.md`: the brief for each read-only area specialist.
+- `agents/implementation-orchestrator.md`: Phases 6–7. Branch, waves, commits, verification, report.
+- `agents/implementer.md`: the brief for each implementer subagent.
+- `references/principles.md`: rules, the brand principle and the brand tests. Every agent reads it.
+- `references/checklist.md`: the 13-area review checklist plus stack-specific lookups.
+- `references/hig-sources.md`: how to fetch the HIG and which sources to cite.
+- `references/task-format.md`: finding schema, severity, confidence and the `HIG_REVIEW.md` task format.

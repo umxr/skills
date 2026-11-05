@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: small-app-review
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  The skill reviews the six-screen Fernleaf app statically and stops at the
+  approval gate. It writes .hig-review/ (inventory, sources, specialist
+  findings, HIG_REVIEW.md with status proposed, proposal.md) and changes no
+  app code. The proposal finds the planted issues: the 30pt icon-only
+  IconButton with no label, the non-scaling price text in a fixed-height box,
+  disabled swipe-back with a custom back control on Product, the one-off
+  #FF6B00 colour, and the Pay button's missing double-submit protection. The
+  Leaf Bar custom tab bar is treated as brand (Keep or Discuss), not replaced.
