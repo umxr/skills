@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Fernleaf",
+    "slug": "fernleaf",
+    "scheme": "fernleaf",
+    "version": "1.4.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.fernleaf.app",
+      "supportsTablet": false,
+      "deploymentTarget": "17.0"
+    }
+  }
+}

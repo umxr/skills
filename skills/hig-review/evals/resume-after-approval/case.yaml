@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: resume-after-approval
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  .hig-review/ already holds a proposed three-task plan, and the user approves
+  all in the prompt. The skill records the approval, sets the plan to
+  approved, creates a hig-fixes/<date> branch, implements HIG-001 to HIG-003,
+  commits each task separately with only its own files, keeps .hig-review/ out
+  of git, and writes a short report with the branch name.
