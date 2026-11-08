@@ -145,6 +145,10 @@ PLACEHOLDER_RE = re.compile(r"(?i)(example|changeme|change_me|placeholder|dummy|
 
 MAX_TEXT_BYTES = 2_000_000
 
+# Packages under these path segments are test fixtures, not part of the product.
+FIXTURE_RE = re.compile(r"(^|/)(__fixtures__|fixtures?|test-fixtures|testdata|__tests__|__mocks__|snapshots?)(/|$)", re.I)
+EXAMPLE_RE = re.compile(r"(^|/)(examples?|samples?|demos?|templates?|starters?)(/|$)", re.I)
+
 
 # --------------------------------------------------------------------------
 # Helpers
@@ -283,6 +287,11 @@ def glob_dirs(root: Path, patterns: list[str], all_dirs: set[str]) -> tuple[list
     ex = [glob_to_regex(e) for e in exclude]
     matched = {d for d in matched if not any(r.match(d) for r in ex)}
     return sorted(matched), unmatched
+
+
+def lang_of(path: str) -> str | None:
+    ext = os.path.splitext(path)[1]
+    return LANG_BY_EXT.get(ext) or LANG_BY_EXT.get(ext.lower())
 
 
 def is_test_path(path: str) -> bool:
@@ -459,7 +468,7 @@ def analyse(root: Path, max_files: int) -> dict:
     for f in files:
         name = f.rsplit("/", 1)[-1]
         ext = os.path.splitext(name)[1]
-        lang = LANG_BY_EXT.get(ext) or LANG_BY_EXT.get(ext.lower())
+        lang = lang_of(name)
         if name in LOCKFILES:
             continue
         if SECRET_FILE_RE.search(f) and not SECRET_FILE_OK_RE.search(f):
@@ -491,7 +500,7 @@ def analyse(root: Path, max_files: int) -> dict:
                                     "match": m.group(0)[:6] + "…(masked)"})
                     break
 
-    code_files = [f for f in file_lines if LANG_BY_EXT.get(os.path.splitext(f)[1]) not in NON_CODE_LANGS]
+    code_files = [f for f in file_lines if lang_of(f) not in NON_CODE_LANGS]
     test_files = [f for f in code_files if is_test_path(f) or (
         f.endswith(".rs") and "#[cfg(test)]" in (read_text(root / f) or ""))]
 
@@ -533,6 +542,11 @@ def analyse(root: Path, max_files: int) -> dict:
         key = d if d not in packages or packages[d]["ecosystem"] == info["ecosystem"] else f"{d}#{info['ecosystem']}"
         info["path"] = d or "."
         packages[key] = info
+
+    fixture_packages = sorted(p["path"] for k, p in packages.items() if FIXTURE_RE.search(p["path"]))
+    packages = {k: p for k, p in packages.items() if not FIXTURE_RE.search(p["path"])}
+    for p in packages.values():
+        p["kind"] = "example" if EXAMPLE_RE.search(p["path"]) else "package"
 
     # ---- workspace declarations
     workspaces: list[dict] = []
@@ -629,8 +643,8 @@ def analyse(root: Path, max_files: int) -> dict:
                 break
     for p in packages.values():
         mine = [f for f, d in owner.items() if d == p["path"]]
-        code = [f for f in mine if f in file_lines and LANG_BY_EXT.get(os.path.splitext(f)[1]) not in NON_CODE_LANGS]
-        langs = Counter(LANG_BY_EXT[os.path.splitext(f)[1]] for f in code)
+        code = [f for f in mine if f in file_lines and lang_of(f) not in NON_CODE_LANGS]
+        langs = Counter(lang_of(f) for f in code)
         p["files"] = len(mine)
         p["code_lines"] = sum(file_lines[f] for f in code)
         p["languages"] = dict(langs.most_common(3))
@@ -696,6 +710,8 @@ def analyse(root: Path, max_files: int) -> dict:
     drift = []
     by_dep: dict[tuple[str, str], dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
     for k, p in packages.items():
+        if p.get("kind") == "example":
+            continue
         for dep, meta in p["deps"].items():
             if meta.get("internal") or meta["spec"].startswith(("workspace", "path:")):
                 continue
@@ -703,6 +719,7 @@ def analyse(root: Path, max_files: int) -> dict:
     for (eco, dep), specs in sorted(by_dep.items()):
         if len(specs) > 1:
             drift.append({"ecosystem": eco, "dependency": dep, "versions": dict(specs)})
+    drift.sort(key=lambda d: (-sum(len(v) for v in d["versions"].values()), d["dependency"]))
 
     # ---- internal deps declared with a version that doesn't match the target's
     internal_mismatch = []
@@ -836,12 +853,15 @@ def analyse(root: Path, max_files: int) -> dict:
         "internal_edges": [{"from": packages[a]["path"], "to": packages[b]["path"], "spec": s} for a, b, s in edges],
         "cycles": [[packages[n]["path"] for n in c] for c in cycles],
         "not_depended_on": sorted(p["path"] for k, p in packages.items()
-                                  if depended_on[k] == 0 and len(packages) > 1 and p["path"] != "."),
+                                  if depended_on[k] == 0 and len(packages) > 1 and p["path"] != "."
+                                  and p.get("kind") != "example"),
+        "most_depended_on": [(packages[k]["path"], n) for k, n in depended_on.most_common(12)],
+        "fixture_packages": fixture_packages,
         "version_drift": drift,
         "build_risks": build_risks,
         "internal_version_mismatch": internal_mismatch,
         "largest_files": sorted(((n, f) for f, n in file_lines.items()
-                                 if LANG_BY_EXT.get(os.path.splitext(f)[1]) not in NON_CODE_LANGS),
+                                 if lang_of(f) not in NON_CODE_LANGS),
                                 reverse=True)[:12],
         "todo_total": sum(todo_by_file.values()),
         "todo_top_files": todo_by_file.most_common(8),
@@ -878,7 +898,7 @@ def md(inv: dict) -> str:
     w(", ".join(f"`{d}` ({n})" for d, n in inv["top_level"]))
     w("\n## Tooling markers\n")
     for k, v in inv["markers"].items():
-        w(f"- **{k}:** " + ", ".join(f"`{x}`" for x in v[:8]) + (" …" if len(v) > 8 else ""))
+        w(f"- **{k}:** " + ", ".join(f"`{x}`" for x in v[:5]) + (f" … (+{len(v) - 5})" if len(v) > 5 else ""))
     if inv["workspaces"]:
         w("\n## Workspaces\n")
         for ws in inv["workspaces"]:
@@ -887,35 +907,53 @@ def md(inv: dict) -> str:
               f"{len(ws['members'])} members{extra}")
     if inv["workspace_problems"]:
         w("\n### Workspace problems\n")
-        for p in inv["workspace_problems"]:
+        for p in inv["workspace_problems"][:20]:
             w(f"- {p}")
-    w(f"\n## Packages / projects ({len(inv['packages'])})\n")
+        if len(inv["workspace_problems"]) > 20:
+            w(f"- … and {len(inv['workspace_problems']) - 20} more (see JSON)")
+    examples = [p for p in inv["packages"] if p.get("kind") == "example"]
+    core = [p for p in inv["packages"] if p.get("kind") != "example"]
+    w(f"\n## Packages / projects ({len(core)}" + (f" + {len(examples)} examples" if examples else "") + ")\n")
+    if inv.get("fixture_packages"):
+        fx = Counter("/".join(x.split("/")[:2]) for x in inv["fixture_packages"])
+        w(f"Ignored {len(inv['fixture_packages'])} test-fixture manifests (under "
+          + ", ".join(f"`{d}/`" for d, _ in fx.most_common(5)) + ").\n")
+    if examples:
+        ex_dirs = Counter(x["path"].split("/")[0] for x in examples)
+        w(f"Example/template packages ({len(examples)}, excluded from drift checks): "
+          + ", ".join(f"`{d}/` ({n})" for d, n in ex_dirs.most_common(5)) + "\n")
     w("| Path | Name | Eco | Version | Code lines | Tests | Main langs | Scripts / entry |\n|---|---|---|---|---:|---:|---|---|")
-    shown = inv["packages"]
-    if len(shown) > 60:
-        shown = sorted(shown, key=lambda p: -p["code_lines"])[:60]
-        w(f"| … | showing the 60 largest of {len(inv['packages'])}; full list in the JSON | | | | | | |")
+    shown = core
+    if len(shown) > 40:
+        shown = sorted(shown, key=lambda p: -p["code_lines"])[:40]
+        w(f"| … | showing the 40 largest of {len(core)}; full list in the JSON | | | | | | |")
     for p in sorted(shown, key=lambda p: p["path"]):
         scripts = ", ".join(list(p["scripts"])[:6])
         entry = ", ".join(f"{k}" for k in p["entry"])
         w(f"| `{p['path']}` | {p['name']} | {p['ecosystem']} | {p.get('version') or ''} | {p['code_lines']:,} | "
           f"{p['test_files']} | {', '.join(p['languages'])} | {'; '.join(x for x in (scripts, entry) if x)} |")
     if inv["internal_edges"]:
-        w("\n## Internal dependency graph\n")
-        w("```mermaid\ngraph LR")
+        w(f"\n## Internal dependency graph ({len(inv['internal_edges'])} edges)\n")
         ids = {p["path"]: f"n{i}" for i, p in enumerate(inv["packages"])}
         linked = {e["from"] for e in inv["internal_edges"]} | {e["to"] for e in inv["internal_edges"]}
-        for p in inv["packages"]:
-            if p["path"] in linked or p["path"] != ".":
-                w(f'  {ids[p["path"]]}["{p["name"]}"]')
-        for e in inv["internal_edges"]:
-            w(f"  {ids[e['from']]} --> {ids[e['to']]}")
-        w("```")
+        if len(linked) <= 30:
+            w("```mermaid\ngraph LR")
+            for p in inv["packages"]:
+                if p["path"] in linked or (p["path"] != "." and p.get("kind") != "example"):
+                    w(f'  {ids[p["path"]]}["{p["name"]}"]')
+            for e in inv["internal_edges"]:
+                w(f"  {ids[e['from']]} --> {ids[e['to']]}")
+            w("```")
+        else:
+            w(f"{len(linked)} packages are linked — too many to draw; full edge list in the JSON. "
+              "Most depended-on (the core everything builds on): "
+              + ", ".join(f"`{p}` ({n})" for p, n in inv.get("most_depended_on", [])[:12]))
         if inv["cycles"]:
             w("\n**Dependency cycles:** " + "; ".join(" → ".join(f"`{n}`" for n in c) for c in inv["cycles"]))
         if inv["not_depended_on"]:
-            w("\n**Not depended on by any other package** (apps/tools, or possibly dead): "
-              + ", ".join(f"`{x}`" for x in inv["not_depended_on"]))
+            nd = inv["not_depended_on"]
+            w(f"\n**Not depended on by any other package** ({len(nd)}; apps/tools, or possibly dead): "
+              + ", ".join(f"`{x}`" for x in nd[:30]) + (f" … (+{len(nd) - 30})" if len(nd) > 30 else ""))
     conflicts = [(p["path"], c) for p in inv["packages"] for c in p.get("manifest_conflicts") or []]
     if conflicts:
         w(f"\n## Conflicting pins between manifests of one project ({len(conflicts)})\n")
@@ -925,7 +963,9 @@ def md(inv: dict) -> str:
         w("\n**Internal version mismatches:** " + "; ".join(inv["internal_version_mismatch"]))
     if inv["version_drift"]:
         w(f"\n## External dependency version drift ({len(inv['version_drift'])})\n")
-        for d in inv["version_drift"][:25]:
+        if len(inv["version_drift"]) > 12:
+            w(f"Showing the 12 most widespread; full list in the JSON.\n")
+        for d in inv["version_drift"][:12]:
             w(f"- `{d['dependency']}` ({d['ecosystem']}): " +
               "; ".join(f"`{s}` in {', '.join(f'`{x}`' for x in ps)}" for s, ps in d["versions"].items()))
     if inv["build_risks"]:
@@ -940,10 +980,13 @@ def md(inv: dict) -> str:
         w("\nMost-changed files (12 months): " + ", ".join(f"`{f}` ({n})" for f, n in inv["git"]["churn_12mo"][:8]))
     if inv["possible_secrets"]:
         w(f"\n## Possible secrets ({len(inv['possible_secrets'])}) — verify by reading; values masked\n")
-        for s in inv["possible_secrets"][:20]:
+        def _is_fixture(s):
+            return is_test_path(s["file"]) or bool(re.search(
+                r"(^|/)(docs?|examples?|fixtures?|testdata)(/|$)|example", s["file"], re.I))
+        ordered = sorted(inv["possible_secrets"], key=_is_fixture)
+        for s in ordered[:15]:
             loc = f"{s['file']}:{s['line']}" if s["line"] else s["file"]
-            fixture = " — in a test/example/docs file, likely a fixture" if (
-                is_test_path(s["file"]) or re.search(r"(^|/)(docs?|examples?|fixtures?|testdata)(/|$)|example", s["file"], re.I)) else ""
+            fixture = " — in a test/example/docs file, likely a fixture" if _is_fixture(s) else ""
             w(f"- `{loc}` — {s['kind']}" + (f" (`{s['match']}`)" if s.get("match") else "") + fixture)
     w("\n## Docs\n")
     w("READMEs: " + (", ".join(f"`{r}`" for r in inv["readmes"][:12]) or "none"))
