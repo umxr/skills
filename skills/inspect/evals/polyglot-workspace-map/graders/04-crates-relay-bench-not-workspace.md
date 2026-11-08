@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-The report flags that crates/relay-bench is not a workspace member
+The output flags that crates/relay-bench is not a workspace member

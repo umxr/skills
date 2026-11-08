@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-The report maps all three ecosystems: the Cargo workspace crates, the Go modules (gateway and auth) and the Python loadgen tool
+The output maps all three ecosystems: the Cargo workspace crates, the Go modules (gateway and auth) and the Python loadgen tool

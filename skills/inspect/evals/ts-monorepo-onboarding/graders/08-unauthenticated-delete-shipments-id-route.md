@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-The report flags the unauthenticated DELETE /shipments/:id route and the SQL built by string interpolation ($executeRawUnsafe) as a SQL-injection risk
+The output flags the unauthenticated DELETE /shipments/:id route and the SQL built by string interpolation ($executeRawUnsafe) as a SQL-injection risk

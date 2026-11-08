@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-The report flags that crates/relay-proto is a Cargo workspace member that does not exist (breaking cargo builds)
+The output flags that crates/relay-proto is a Cargo workspace member that does not exist (breaking cargo builds)

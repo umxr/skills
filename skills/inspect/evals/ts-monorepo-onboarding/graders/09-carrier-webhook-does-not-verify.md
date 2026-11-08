@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-The report flags that the carrier webhook does not verify its signature
+The output flags that the carrier webhook does not verify its signature

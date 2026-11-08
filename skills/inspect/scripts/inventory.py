@@ -298,6 +298,18 @@ def is_test_path(path: str) -> bool:
     return any(p.search(path) for p in TEST_PATTERNS)
 
 
+def _links_locally(spec: str, local_version: str | None) -> bool:
+    """Would a JS dependency spec resolve to the workspace package of that name?"""
+    spec = (spec or "").strip()
+    if spec.startswith(("workspace:", "file:", "link:", "portal:")) or spec in ("*", "", "latest"):
+        return True
+    if not local_version:
+        return False
+    want = re.findall(r"\d+", spec)
+    have = re.findall(r"\d+", local_version)
+    return bool(want and have and want[0] == have[0])
+
+
 def norm_py(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -673,6 +685,8 @@ def analyse(root: Path, max_files: int) -> dict:
     for k, p in packages.items():
         for dep, meta in p["deps"].items():
             tgt = by_name.get((p["ecosystem"], dep))
+            if tgt and p["ecosystem"] == "node" and not _links_locally(meta["spec"], packages[tgt].get("version")):
+                tgt = None  # same name as a local package, but resolves from the registry
             if tgt and tgt != k:
                 edges.append((k, tgt, meta["spec"]))
                 meta["internal"] = True
@@ -755,12 +769,18 @@ def analyse(root: Path, max_files: int) -> dict:
     if any(p["ecosystem"] == "cargo" and p["entry"].get("bin") for p in packages.values()) and "Cargo.lock" not in names:
         build_risks.append("Cargo binaries but no Cargo.lock committed (non-reproducible builds)")
     for f in markers.get("Docker", []):
+        if FIXTURE_RE.search(f) or is_test_path(f):
+            continue
         text = read_text(root / f) or ""
         ctx = str(PurePosixPath(f).parent)
         ctx = "" if ctx == "." else ctx
-        if re.search(r"(?m)^\s*(COPY|ADD)\s+(--\S+\s+)*\.\s+\S+", text) and \
-                f"{ctx}/.dockerignore".lstrip("/") not in fileset and ".dockerignore" not in fileset:
-            leaked = [x for x in fileset if SECRET_FILE_RE.search(x) and not SECRET_FILE_OK_RE.search(x)]
+        parts = ctx.split("/") if ctx else []
+        ancestors = ["/".join(parts[:i]) for i in range(len(parts), -1, -1)]
+        has_ignore = any(f"{a}/.dockerignore".lstrip("/") in fileset or
+                         f"{f}.dockerignore" in fileset for a in ancestors)
+        if re.search(r"(?m)^\s*(COPY|ADD)\s+(--\S+\s+)*\.\s+\S+", text) and not has_ignore:
+            leaked = [x for x in fileset if SECRET_FILE_RE.search(x) and not SECRET_FILE_OK_RE.search(x)
+                      and not FIXTURE_RE.search(x) and not is_test_path(x)]
             build_risks.append(f"`{f}` copies the whole build context with no .dockerignore"
                                + (f" — this bakes {', '.join(sorted(leaked)[:3])} into the image" if leaked else ""))
     for f in markers.get("Docker Compose", []):
@@ -783,8 +803,20 @@ def analyse(root: Path, max_files: int) -> dict:
                 build_risks.append(f"CI never builds/tests the {eco} code ({where})")
         if "turbo.json" in fileset:
             tj = load_json(root / "turbo.json") or {}
-            tasks = list((tj.get("tasks") or tj.get("pipeline") or {}).keys())
-            missing = [t for t in tasks if t not in ("dev",) and not re.search(rf"\b{re.escape(t)}\b", ci_text)]
+            tdefs = tj.get("tasks") or tj.get("pipeline") or {}
+            tasks = list(tdefs.keys())
+            def _name(t):  # "pkg#build" / "^build" / "build" -> "build"
+                return t.lstrip("^").split("#")[-1]
+            reached = {t for t in tasks if re.search(rf"\b{re.escape(_name(t))}\b", ci_text)}
+            frontier = list(reached)
+            while frontier:
+                t = frontier.pop()
+                for d in (tdefs.get(t) or {}).get("dependsOn", []) if isinstance(tdefs.get(t), dict) else []:
+                    for cand in tasks:
+                        if _name(cand) == _name(d) and cand not in reached:
+                            reached.add(cand); frontier.append(cand)
+            missing = [t for t in tasks if _name(t) not in ("dev",) and t not in reached
+                       and not (isinstance(tdefs.get(t), dict) and tdefs[t].get("persistent"))]
             if missing:
                 build_risks.append(f"turbo tasks never run in CI: {', '.join(missing)}")
     elif packages:
