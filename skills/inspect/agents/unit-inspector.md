@@ -6,7 +6,7 @@ You will be given: the repo root, your unit path(s), the inventory rows for them
 
 ## Rules
 
-- **Read-only.** Don't edit, create or delete files; don't install, build, run services or use the network. Cheap read-only commands (`ls`, `git log -- <path>`, `grep`) are fine.
+- **Read-only.** Don't edit, create or delete files; don't install, build, run services or use the network. Stick to `ls`, `cat`, `grep`, `git log -- <path>` — tools like `go list`, `pytest` or `cargo` write files (`go.work.sum`, `__pycache__`, `target/`) even when they look read-only.
 - **Evidence.** Every claim cites a file path; every problem cites `file:line`. If you infer something you didn't confirm, say "(unconfirmed)".
 - **Mask secrets.** Name the file, line and kind; never repeat the value.
 - **Be proportionate.** Read entry points, the modules they lead to, manifests, tests and config. Skim or skip generated code, fixtures and vendored files.

@@ -13,10 +13,10 @@ Produce an accurate, evidence-backed picture of a whole codebase: what it is, ho
 ## Principles (why the steps look the way they do)
 
 - **Evidence over impressions.** Every factual claim about the code should be traceable to a file (and line, for findings). Readers will act on this report; a confident wrong statement costs them more than an honest "not verified". Separate what you confirmed by reading from what you infer.
-- **Read-only by default.** Don't install dependencies, run builds, start services, or touch the network unless the user asked. Cheap, side-effect-free commands (`git log`, `ls`, `cat`, the inventory script) are fine. You are describing the repo, not changing it — the only file you write inside it is the report.
+- **Leave the repo exactly as you found it.** The only file you add is the report. Many "harmless" commands write files: `go list`/`go build` create `go.work.sum`, `pytest` leaves `__pycache__`, `cargo` writes `target/` and `Cargo.lock`, package managers write lockfiles and `node_modules`. So inside the repo, stick to reading (`git`, `ls`, `cat`, `grep`, the inventory script). If running something would confirm a claim, do it in a throwaway copy (see step 4).
 - **Coverage before depth.** It is easy to spend the whole budget on the first interesting package and never look at the rest. Map everything first (the inventory does this in seconds), then go deep where it matters — the focus, the core path, and anything the inventory flagged.
 - **Runtime wiring matters as much as manifests.** Manifests show who imports whom. They don't show that the Go gateway talks to the Rust relay over TCP, or that two apps share a database. Look for those links (URLs/hosts in env vars, docker-compose, shared schemas/protos, queue names, HTTP clients) — that's usually what a newcomer most needs.
-- **Never echo secret values.** If you find credentials, name the file, line and kind of secret, and mask the value.
+- **Never echo secret values — but don't undersell them either.** Name the file, line and kind of secret, and mask the value (`postgres://harbor_admin:****@…`). Then judge whether it looks real: production-looking hosts (`prod`, cloud DB endpoints), `live` key prefixes and non-placeholder values mean "treat as leaked: rotate it, and remember it stays in git history even after deletion". Say that plainly rather than asking whether it might be real.
 
 ## Workflow
 
@@ -28,9 +28,9 @@ Run the bundled script against the root. Write the JSON outside the repo so the 
 python3 <skill-dir>/scripts/inventory.py <root> --json "${TMPDIR:-/tmp}/inspect-inventory.json"
 ```
 
-It prints a Markdown summary: shape (single project / monorepo / multi-project / polyglot), languages and size, tooling markers (CI, Docker, linters, version pins), declared workspaces and **workspace problems** (patterns that match nothing, members without manifests, crates or Go modules left out of the workspace), every package with its scripts/entry points/test count, the **internal dependency graph** (as Mermaid) with **cycles** and packages nothing depends on, **version drift** of external deps across packages, conflicting pins between manifests of one project, largest files, TODO/FIXME counts, git history and churn, and **possible secrets** (masked).
+It prints a Markdown summary: shape (single project / monorepo / multi-project / polyglot), languages and size, tooling markers (CI, Docker, linters, version pins), declared workspaces and **workspace problems** (patterns that match nothing, members without manifests, crates or Go modules left out of the workspace), every package with its scripts/entry points/test count, the **internal dependency graph** (as Mermaid) with **cycles** and packages nothing depends on, **version drift** of external deps across packages, conflicting pins between manifests of one project, **build/ship risks** (missing lockfiles under `--frozen-lockfile`, `tsc` without a tsconfig, Go modules without `go.sum`, Docker `COPY . .` with no `.dockerignore`, compose services with no Dockerfile, ecosystems or turbo tasks CI never runs), largest files, TODO/FIXME counts, git history and churn, and **possible secrets** (masked).
 
-Treat the flags as leads, not conclusions: the script uses heuristics. Each flag you report must be confirmed by reading the file it points at (e.g. a "cycle" might be a devDependency only; a "secret" might be an obvious placeholder; "not depended on" is normal for apps and CLIs but suspicious for a library).
+Treat the flags as leads, not conclusions: the script uses heuristics. Each flag you report must be confirmed by reading the file it points at (e.g. a "cycle" might be a devDependency only; a declared dependency might never actually be imported; a "secret" might be an obvious placeholder; "not depended on" is normal for apps and CLIs but suspicious for a library).
 
 If the script fails (unusual Python, odd layout), carry on manually with `git ls-files`, manifests and `find` — don't stop.
 
@@ -62,8 +62,9 @@ Now look across units — this is where most of the report's value is:
 
 - **How it fits together:** trace one or two real request/data paths end to end (e.g. browser → web app → API client → API → DB; CLI → core lib → network). Note runtime links manifests don't show. When two units talk, check that both sides agree (framing, schema, auth expectations, ports/env var names).
 - **Confirm or dismiss every inventory flag** by reading the evidence.
-- **Build & CI reality:** does CI build/test every unit and every language? Do declared scripts exist where the task runner expects them (e.g. a `turbo run typecheck` with packages that lack a `typecheck` script)? Do Dockerfiles and the manifests they install from agree?
-- **Config & secrets:** list env vars the system needs and where they're read; note committed `.env` files and hard-coded fallbacks (masked).
+- **Does it actually work as committed?** Newcomers assume the main branch builds and runs; tell them where it doesn't. Check: CI builds/tests every unit and language; lockfiles exist where installs demand them; configs referenced by scripts exist (tsconfig, eslint, migrations); built output can load what it imports (e.g. `main` pointing at `.ts` source of a sibling package); Dockerfiles and compose contexts exist and can see what they copy; entry points really do what they claim (a server that never listens, a CLI that prints and exits, a migration that's empty).
+- **Config & secrets:** list env vars the system needs and where they're read; note committed `.env` files and hard-coded fallbacks (masked, with your verdict on whether they look real).
+- **Optional: verify in a throwaway copy.** When a claim is load-bearing ("the Rust workspace doesn't build", "a null due date crashes the run") and the toolchain is already installed, you can confirm it by running the relevant build/test offline in a copy: `cp -R <root> "${TMPDIR:-/tmp}/inspect-verify"`, run there, then delete the copy. Skip this if the user asked you not to run things, if it would need to download dependencies, or if it would take more than a couple of minutes. Mark each finding as confirmed (by reading or by running) or "(unconfirmed)".
 
 ### 5. Focus deep-dive (only when a focus was given)
 
@@ -84,7 +85,7 @@ _<date> · <git commit or "not a git repo"> · scope: <root> · focus: <focus or
 One short paragraph.
 
 ## Layout
-Shape (single / monorepo with <tool> / polyglot), a table of units: path · name · kind (app/service/lib/tool) · language · purpose · tests? — and for multi-unit repos the dependency graph (Mermaid), with runtime links drawn differently from import links (e.g. dashed).
+Shape (single / monorepo with <tool> / polyglot), a table of units: path · name · kind (app/service/lib/tool) · language · purpose · tests? — and for multi-unit repos the dependency graph (Mermaid): solid arrows for imports you saw in code, dashed for runtime links (HTTP/TCP/DB/env var), and declared-but-unused dependencies labelled as such.
 
 ## How it fits together
 The real request/data flows, step by step, naming files. Call out cross-unit contracts and whether both sides agree.
@@ -105,7 +106,7 @@ A short subsection per unit: purpose, entry points, key files, notable issues.
 
 ## Findings
 | # | Severity | Area | Finding | Evidence | Suggested fix |
-Severity: **High** = exploitable, data loss/corruption, or breaks prod/CI; **Medium** = real bug or risk with limited blast radius, or hygiene that will bite soon; **Low** = cleanup. Order by severity. Mark anything inferred but not confirmed as "(unconfirmed)".
+Use exactly these severities: **High** = exploitable, leaked credentials, data loss/corruption, or breaks prod/CI/the build; **Medium** = real bug or risk with limited blast radius, or hygiene that will bite soon; **Low** = cleanup. Order by severity; every High cites `file:line`. Mark anything inferred but not confirmed as "(unconfirmed)".
 
 ## Where to start
 A reading order for a newcomer (5–10 files), and who/what to ask about unclear areas.

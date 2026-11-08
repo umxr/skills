@@ -713,6 +713,66 @@ def analyse(root: Path, max_files: int) -> dict:
             if nums and nums[0] != re.findall(r"\d+", tv)[0]:
                 internal_mismatch.append(f"{packages[a]['name']} wants {packages[b]['name']}@{spec} but it is {tv}")
 
+    # ---- build/run risks: cheap static checks for "this won't build or ship as committed"
+    build_risks: list[str] = []
+    names = {f.rsplit("/", 1)[-1] for f in files}
+    ci_text = "\n".join(read_text(root / f) or "" for f in ci)
+    node_pkgs = [p for p in packages.values() if p["ecosystem"] == "node"]
+    if node_pkgs and not names & {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock"}:
+        frozen = [f for f in ci + markers.get("Docker", []) if re.search(
+            r"--frozen-lockfile|--immutable|npm ci\b", read_text(root / f) or "")]
+        build_risks.append("No JS lockfile committed" + (
+            f"; `--frozen-lockfile`/`npm ci` in {', '.join(frozen)} will fail" if frozen else ""))
+    for p in node_pkgs:
+        d = "" if p["path"] == "." else p["path"]
+        uses_tsc = any(re.search(r"\btsc\b", str(v)) for v in p["scripts"].values())
+        has_tsconfig = any(f"{d}/tsconfig.json".lstrip("/") == f or f == "tsconfig.json" or
+                           re.match(rf"^{re.escape(d)}/tsconfig[^/]*\.json$", f) for f in fileset)
+        if uses_tsc and not has_tsconfig:
+            build_risks.append(f"`{p['path']}` runs `tsc` but no tsconfig.json exists there or at the root")
+    for p in packages.values():
+        d = "" if p["path"] == "." else p["path"]
+        if p["ecosystem"] == "go" and any(m["kind"] == "require" and "=>" not in m["spec"] for m in p["deps"].values()) \
+                and str(PurePosixPath(d, "go.sum")).lstrip("./") not in fileset and f"{d}/go.sum".lstrip("/") not in fileset:
+            build_risks.append(f"`{p['path']}` has external Go requires but no go.sum (builds fail outside a warm module cache)")
+    if any(p["ecosystem"] == "cargo" and p["entry"].get("bin") for p in packages.values()) and "Cargo.lock" not in names:
+        build_risks.append("Cargo binaries but no Cargo.lock committed (non-reproducible builds)")
+    for f in markers.get("Docker", []):
+        text = read_text(root / f) or ""
+        ctx = str(PurePosixPath(f).parent)
+        ctx = "" if ctx == "." else ctx
+        if re.search(r"(?m)^\s*(COPY|ADD)\s+(--\S+\s+)*\.\s+\S+", text) and \
+                f"{ctx}/.dockerignore".lstrip("/") not in fileset and ".dockerignore" not in fileset:
+            leaked = [x for x in fileset if SECRET_FILE_RE.search(x) and not SECRET_FILE_OK_RE.search(x)]
+            build_risks.append(f"`{f}` copies the whole build context with no .dockerignore"
+                               + (f" — this bakes {', '.join(sorted(leaked)[:3])} into the image" if leaked else ""))
+    for f in markers.get("Docker Compose", []):
+        text = read_text(root / f) or ""
+        for m in re.finditer(r"context:\s*['\"]?([^'\",}\s]+)", text):
+            c = m.group(1).strip("./") if m.group(1) not in (".", "./") else ""
+            seg = text[m.end(): m.end() + 200]
+            df = re.search(r"dockerfile:\s*['\"]?([^'\",}\s]+)", seg)
+            want = str(PurePosixPath(c or ".", df.group(1))) if df else str(PurePosixPath(c or ".", "Dockerfile"))
+            want = want[2:] if want.startswith("./") else want
+            if want not in fileset and not df:
+                build_risks.append(f"`{f}` builds context `{m.group(1)}` but there is no Dockerfile at `{want}`")
+    if ci:
+        eco_ci = {"node": r"\b(npm|pnpm|yarn|bun|npx|node)\b", "cargo": r"\bcargo\b", "go": r"\bgo (build|test|vet)\b",
+                  "python": r"\b(pytest|python|pip|uv|poetry|tox|ruff)\b", "maven": r"\bmvn\b", "gradle": r"\bgradlew?\b"}
+        for eco in sorted({p["ecosystem"] for p in packages.values()}):
+            rx = eco_ci.get(eco)
+            if rx and not re.search(rx, ci_text):
+                where = ", ".join(sorted(p["path"] for p in packages.values() if p["ecosystem"] == eco)[:5])
+                build_risks.append(f"CI never builds/tests the {eco} code ({where})")
+        if "turbo.json" in fileset:
+            tj = load_json(root / "turbo.json") or {}
+            tasks = list((tj.get("tasks") or tj.get("pipeline") or {}).keys())
+            missing = [t for t in tasks if t not in ("dev",) and not re.search(rf"\b{re.escape(t)}\b", ci_text)]
+            if missing:
+                build_risks.append(f"turbo tasks never run in CI: {', '.join(missing)}")
+    elif packages:
+        build_risks.append("No CI configuration found")
+
     # ---- git
     git = None
     top = (run_git(root, "rev-parse", "--show-toplevel") or "").strip()
@@ -778,6 +838,7 @@ def analyse(root: Path, max_files: int) -> dict:
         "not_depended_on": sorted(p["path"] for k, p in packages.items()
                                   if depended_on[k] == 0 and len(packages) > 1 and p["path"] != "."),
         "version_drift": drift,
+        "build_risks": build_risks,
         "internal_version_mismatch": internal_mismatch,
         "largest_files": sorted(((n, f) for f, n in file_lines.items()
                                  if LANG_BY_EXT.get(os.path.splitext(f)[1]) not in NON_CODE_LANGS),
@@ -863,6 +924,10 @@ def md(inv: dict) -> str:
         for d in inv["version_drift"][:25]:
             w(f"- `{d['dependency']}` ({d['ecosystem']}): " +
               "; ".join(f"`{s}` in {', '.join(f'`{x}`' for x in ps)}" for s, ps in d["versions"].items()))
+    if inv["build_risks"]:
+        w(f"\n## Build / ship risks ({len(inv['build_risks'])}) — static checks, confirm by reading\n")
+        for r in inv["build_risks"]:
+            w(f"- {r}")
     w("\n## Hotspots\n")
     w("Largest code files: " + ", ".join(f"`{f}` ({n})" for n, f in inv["largest_files"][:8]))
     w(f"\nTODO/FIXME/HACK markers: {inv['todo_total']}" +
