@@ -14,9 +14,10 @@ Produce an accurate, evidence-backed picture of a whole codebase: what it is, ho
 
 - **Evidence over impressions.** Every factual claim about the code should be traceable to a file (and line, for findings). Readers will act on this report; a confident wrong statement costs them more than an honest "not verified". Separate what you confirmed by reading from what you infer.
 - **Leave the repo exactly as you found it.** The only file you add is the report. Many "harmless" commands write files: `go list`/`go build` create `go.work.sum`, `pytest` leaves `__pycache__`, `cargo` writes `target/` and `Cargo.lock`, package managers write lockfiles and `node_modules`. So inside the repo, stick to reading (`git`, `ls`, `cat`, `grep`, the inventory script). If running something would confirm a claim, do it in a throwaway copy (see step 4).
+- **Proportionate and prioritised.** The reader should get the picture in about ten minutes. Scale the report to the repo (a 200-line repo doesn't need 20 KB), keep sections that aren't the focus short, and make the order of urgency obvious — reserve **High** for things that are genuinely urgent, so the top of the list means something.
 - **Coverage before depth.** It is easy to spend the whole budget on the first interesting package and never look at the rest. Map everything first (the inventory does this in seconds), then go deep where it matters — the focus, the core path, and anything the inventory flagged.
 - **Runtime wiring matters as much as manifests.** Manifests show who imports whom. They don't show that the Go gateway talks to the Rust relay over TCP, or that two apps share a database. Look for those links (URLs/hosts in env vars, docker-compose, shared schemas/protos, queue names, HTTP clients) — that's usually what a newcomer most needs.
-- **Never echo secret values — but don't undersell them either.** Name the file, line and kind of secret, and mask the value (`postgres://harbor_admin:****@…`). Then judge whether it looks real: production-looking hosts (`prod`, cloud DB endpoints), `live` key prefixes and non-placeholder values mean "treat as leaked: rotate it, and remember it stays in git history even after deletion". Say that plainly rather than asking whether it might be real.
+- **Never echo secret values — but don't undersell them either.** Name the file, line and kind of secret, and mask the whole value — no prefixes, suffixes or lengths (`postgres://harbor_admin:****@harbor-prod-db…`, `CARRIER_WEBHOOK_SECRET=****`); the host and variable name carry the meaning. Then judge whether it looks real: production-looking hosts (`prod`, cloud DB endpoints), `live` key prefixes and non-placeholder values mean "treat as leaked: rotate it, and remember it stays in git history even after deletion". Say that plainly rather than asking whether it might be real.
 
 ## Workflow
 
@@ -68,7 +69,7 @@ Now look across units — this is where most of the report's value is:
 
 ### 5. Focus deep-dive (only when a focus was given)
 
-Still map the whole repo (briefly), but spend most of the depth on the focus. For a "I need to change X" focus, the reader needs: where X lives and every caller of it (API, CLI, jobs); the data it reads/writes; its invariants and the known bugs/edge cases in it right now; which tests cover it (and what they miss); config that changes its behaviour; and a concrete "before you change it" checklist.
+Still map the whole repo, but briefly — most of the depth goes to the focus. For a "I need to change X" focus, the reader needs: where X lives and every caller of it (API, CLI, jobs); the data it reads/writes; its current behaviour stated precisely (a small table of cases beats prose); its invariants and the known bugs/edge cases right now; which tests cover it (and what they miss); config that changes its behaviour; and a concrete "before you change it" checklist about X itself. Service-wide problems that merely affect X (no CI, broken migrations, a leaked key) go in Findings, with a one-line pointer from the focus section, not in the checklist.
 
 ### 6. Write the report
 
@@ -79,7 +80,7 @@ Write it to `CODEBASE_REPORT.md` at the inspected root unless the user named ano
 _<date> · <git commit or "not a git repo"> · scope: <root> · focus: <focus or "general">_
 
 ## TL;DR
-3–6 bullets: what it is, its shape, the most important things to know, the top risks.
+3–6 bullets: what it is, its shape, the most important things to know — ending with **Fix first:** the 1–3 most urgent findings by number.
 
 ## What it is
 One short paragraph.
@@ -94,7 +95,7 @@ The real request/data flows, step by step, naming files. Call out cross-unit con
 Languages, frameworks, data stores, infra, tooling — with versions where pinned.
 
 ## Build, run, test
-Exact commands (from the repo, not guessed), what each needs (env vars, services), and what CI actually runs vs. what it skips.
+Exact commands (from the repo, not guessed), what each needs (env vars, services), whether it works as committed, and what CI actually runs vs. what it skips. If something doesn't build as committed, add the shortest recipe that works today (e.g. "remove X from members, then …"), marked as a workaround.
 
 ## Configuration & external services
 Env vars (name · where read · purpose), external systems, secrets handling.
