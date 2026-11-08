@@ -22,6 +22,7 @@ import re
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # don't leave __pycache__ in the skill folder
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import inventory as inv  # noqa: E402
 
