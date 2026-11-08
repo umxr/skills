@@ -1,0 +1,7 @@
+syntax = "proto3";
+package relay.v1;
+
+message Envelope {
+  string topic = 1;
+  bytes payload = 2;
+}

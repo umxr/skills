@@ -1,0 +1,7 @@
+{
+  "name": "@harbor/api-client",
+  "version": "0.3.0",
+  "main": "src/index.ts",
+  "scripts": { "lint": "eslint src", "build": "tsc" },
+  "dependencies": { "@harbor/utils": "workspace:*" }
+}

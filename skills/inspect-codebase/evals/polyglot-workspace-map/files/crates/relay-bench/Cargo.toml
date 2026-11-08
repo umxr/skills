@@ -1,0 +1,15 @@
+[package]
+name = "relay-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+relay-core = { path = "../relay-core" }
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "frame"
+harness = false

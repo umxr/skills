@@ -1,0 +1,11 @@
+services:
+  relay:
+    build: { context: ., dockerfile: deploy/relay.Dockerfile }
+    ports: ["7000:7000"]
+  gateway:
+    build: { context: services/gateway }
+    environment:
+      RELAY_ADDR: relay:7000
+      AUTH_JWKS_URL: http://auth.invalid/jwks
+    ports: ["8080:8080"]
+    depends_on: [relay]

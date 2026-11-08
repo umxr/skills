@@ -1,0 +1,25 @@
+[project]
+name = "ledgerline"
+version = "2.3.0"
+description = "Reconciles bank statement lines against invoices and payouts."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.111",
+  "uvicorn[standard]>=0.30",
+  "sqlalchemy>=2.0",
+  "alembic>=1.13",
+  "pydantic>=2.7",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+
+[project.scripts]
+ledgerline = "ledgerline.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

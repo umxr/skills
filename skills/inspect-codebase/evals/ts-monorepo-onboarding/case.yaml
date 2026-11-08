@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: ts-monorepo-onboarding
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  A written report on the Harbor pnpm + Turborepo monorepo (3 apps, 6 packages)
+  that maps every package and how they depend on each other, gives the real
+  build/run/test commands, and finds the planted problems: the ui <-> utils
+  dependency cycle, react 18 vs 19 and zod drift across apps, the tools/*
+  workspace glob that matches nothing, the unused legacy-auth package, the
+  committed apps/api/.env with production DB credentials (masked), the
+  unauthenticated DELETE route with SQL built by string interpolation, the
+  unverified carrier webhook, and CI that never runs typecheck while api tests
+  are skipped. No dependencies are installed and no source file is changed.

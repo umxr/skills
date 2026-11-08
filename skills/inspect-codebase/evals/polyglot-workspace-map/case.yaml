@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: polyglot-workspace-map
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  A report on the polyglot relay repo that maps the Cargo workspace, the Go
+  workspace and the Python load generator, explains the runtime path
+  (loadgen -> Go gateway -> auth middleware -> TCP to the Rust relay) and how
+  to build/test each part. It finds the planted problems: crates/relay-proto
+  listed as a workspace member but missing, relay-bench not a member,
+  services/auth missing from go.work, tokio version drift, the gateway writing
+  raw bytes without the u32 length prefix relay-core's framing expects, the
+  auth middleware accepting any bearer token, the unbounded frame length, and
+  CI that only covers Rust. No source file is changed.

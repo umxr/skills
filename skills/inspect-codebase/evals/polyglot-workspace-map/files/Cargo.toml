@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["crates/relay-core", "crates/relay-cli", "crates/relay-proto"]
+
+[workspace.package]
+version = "0.7.2"
+edition = "2021"
