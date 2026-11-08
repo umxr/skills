@@ -162,8 +162,17 @@ def run_git(root: Path, *args: str, timeout: int = 60) -> str | None:
     return out.stdout if out.returncode == 0 else None
 
 
+# Agent tooling installed into the project (skills, commands) is not the user's code.
+AGENT_TOOLING_RE = re.compile(r"^\.(claude|agents|codex|cursor)/(skills|commands|agents)/")
+
+
 def list_files(root: Path, max_files: int) -> tuple[list[str], bool, str]:
     """Return repo-relative POSIX paths, whether truncated, and the method."""
+    files, truncated, method = _list_files(root, max_files)
+    return [f for f in files if not AGENT_TOOLING_RE.match(f)], truncated, method
+
+
+def _list_files(root: Path, max_files: int) -> tuple[list[str], bool, str]:
     if run_git(root, "rev-parse", "--is-inside-work-tree"):
         out = run_git(root, "ls-files", "-co", "--exclude-standard", "-z")
         if out is not None:
