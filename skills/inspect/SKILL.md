@@ -87,7 +87,14 @@ Write both at the inspected root unless the user named other paths. Don't commit
 2. **`CODEBASE_REPORT.md`** — follow `references/REPORT-FORMAT.md`: TL;DR ending in **Fix first**, a findings table, then one subsection per finding with location, what, why it matters, evidence and fix; the focus deep-dive; verification; not covered. It links to `CONTEXT.md` for layout, flows and commands instead of repeating them.
 3. **Cross-link them.** Each Known issues line in `CONTEXT.md` links to its finding number in the report; the report header links to `CONTEXT.md`.
 
-Before replying, re-read both once for repetition: a problem should be explained in exactly one place and referred to by number elsewhere.
+Before replying:
+
+1. Re-read both once for repetition: a problem should be explained in exactly one place and referred to by number elsewhere.
+2. Run the leak check over every file you wrote (and your draft reply, if you saved one):
+   ```bash
+   python3 <skill-dir>/scripts/check_secrets.py <root> CONTEXT.md CODEBASE_REPORT.md [other CONTEXT.md files…]
+   ```
+   It finds the secret values in the repo and flags any file that contains one, or any 8-character fragment of one, such as a prefix. Rewrite every flagged line to describe the secret instead (variable name, host, "prefixed like a production key"), and re-run it until it reports `clean`. Keep the chat reply free of the same fragments.
 
 ### 7. Reply
 

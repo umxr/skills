@@ -57,7 +57,7 @@ Nested agents need Claude Code's default spawn depth (`CLAUDE_CODE_MAX_SUBAGENT_
 3. **Connect.** A cross-cutting pass traces real request paths and checks the contracts between units. It also checks whether the repo actually builds as committed, sometimes by running a build in a throwaway copy. Apart from the files below, the repo is never modified.
 4. **Write it down.** Two files at the repo root, neither committed:
    - **`CONTEXT.md`** holds the durable understanding: layout and dependency graph, how requests flow, build/run/test commands and whether they work, env vars, conventions and gotchas, a glossary, a reading order, and a dated "Known issues" snapshot linking to the findings. Larger monorepos also get a `CONTEXT.md` in each substantive package, with the root file as the map. Keep it, commit it, or point your `CLAUDE.md`/`AGENTS.md` at it so future sessions start with the context. Claude offers to add that pointer.
-   - **`CODEBASE_REPORT.md`** holds the complete findings, not abridged. It has a TL;DR ending in "Fix first", then one entry per finding with location, evidence (including what was confirmed by running in a throwaway copy) and a fix, plus the focus deep-dive and anything not covered. Secret values are always masked.
+   - **`CODEBASE_REPORT.md`** holds the complete findings, not abridged. It has a TL;DR ending in "Fix first", then one entry per finding with location, evidence (including what was confirmed by running in a throwaway copy) and a fix, plus the focus deep-dive and anything not covered. Secret values are always masked, and a bundled check (`scripts/check_secrets.py`) verifies no file leaks any part of one before Claude replies.
 
    The chat reply stays short: the TL;DR, what to fix first, and the file paths.
 
