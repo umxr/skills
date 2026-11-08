@@ -891,7 +891,11 @@ def md(inv: dict) -> str:
             w(f"- {p}")
     w(f"\n## Packages / projects ({len(inv['packages'])})\n")
     w("| Path | Name | Eco | Version | Code lines | Tests | Main langs | Scripts / entry |\n|---|---|---|---|---:|---:|---|---|")
-    for p in inv["packages"]:
+    shown = inv["packages"]
+    if len(shown) > 60:
+        shown = sorted(shown, key=lambda p: -p["code_lines"])[:60]
+        w(f"| … | showing the 60 largest of {len(inv['packages'])}; full list in the JSON | | | | | | |")
+    for p in sorted(shown, key=lambda p: p["path"]):
         scripts = ", ".join(list(p["scripts"])[:6])
         entry = ", ".join(f"{k}" for k in p["entry"])
         w(f"| `{p['path']}` | {p['name']} | {p['ecosystem']} | {p.get('version') or ''} | {p['code_lines']:,} | "
@@ -938,7 +942,9 @@ def md(inv: dict) -> str:
         w(f"\n## Possible secrets ({len(inv['possible_secrets'])}) — verify by reading; values masked\n")
         for s in inv["possible_secrets"][:20]:
             loc = f"{s['file']}:{s['line']}" if s["line"] else s["file"]
-            w(f"- `{loc}` — {s['kind']}" + (f" (`{s['match']}`)" if s.get("match") else ""))
+            fixture = " — in a test/example/docs file, likely a fixture" if (
+                is_test_path(s["file"]) or re.search(r"(^|/)(docs?|examples?|fixtures?|testdata)(/|$)|example", s["file"], re.I)) else ""
+            w(f"- `{loc}` — {s['kind']}" + (f" (`{s['match']}`)" if s.get("match") else "") + fixture)
     w("\n## Docs\n")
     w("READMEs: " + (", ".join(f"`{r}`" for r in inv["readmes"][:12]) or "none"))
     if inv["docs_dirs"]:
