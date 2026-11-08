@@ -5,6 +5,7 @@ Claude skills by [@umxr](https://github.com/umxr).
 | Skill | What it does |
 |---|---|
 | [`hig-review`](skills/hig-review/SKILL.md) | Reviews an iOS app's entire UI and interactions against Apple's Human Interface Guidelines, proposes brand-preserving changes for your approval, then implements them with subagents. |
+| [`inspect`](skills/inspect/SKILL.md) | Inspects a whole codebase — single project, monorepo or polyglot — and writes an evidence-backed report: layout, how the pieces connect, how to build/run/test, and what looks wrong. |
 | [`security-audit`](https://github.com/cloudflare/security-audit-skill/tree/main/skills/security-audit) | Cloudflare's source-first security audit: recon, coverage-led hunting, independent validation, and structured findings. Pulled from upstream (see [Upstream skills](#upstream-skills)). |
 
 ## Install
@@ -28,6 +29,12 @@ Replace `hig-review` with any skill name from the table. Use `-L` so `cp` follow
 ```
 /hig-review                     # whole app
 /hig-review onboarding checkout # specific flows
+```
+
+```
+/inspect                        # whole repo, general inspection
+/inspect services/api           # one path
+/inspect reconciliation logic   # whole repo, deep-dive on a focus
 ```
 
 `hig-review` only runs when you invoke it (`disable-model-invocation: true`), because a full review and implementation is a long, expensive run.

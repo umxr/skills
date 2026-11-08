@@ -1,5 +1,5 @@
 ---
-name: inspect-codebase
+name: inspect
 description: Inspect an entire codebase end to end — single projects, monorepos (pnpm/npm/yarn/bun workspaces, Turborepo, Nx, Lerna, Rush, Cargo, Go and uv workspaces, Gradle, Maven, Bazel) and polyglot repos — and write an evidence-backed report of what it is, how the pieces fit together, how to build/run/test it, and what looks wrong (security, broken workspace config, dependency drift and cycles, untested or dead code, CI gaps). Use this whenever someone wants to understand, audit, map, onboard onto, or get "the lay of the land" of a whole repository or a large part of one, even if they don't say "inspect" — e.g. "how is this repo put together", "I just joined, walk me through this codebase", "what's in this monorepo and how do the packages connect", "review the whole project for problems", or before a big change to a system they don't know yet.
 argument-hint: "[path] [focus, e.g. 'reconciliation logic' or 'security'] — empty = whole repo, general inspection"
 ---
@@ -25,7 +25,7 @@ Produce an accurate, evidence-backed picture of a whole codebase: what it is, ho
 Run the bundled script against the root. Write the JSON outside the repo so the working tree stays clean:
 
 ```bash
-python3 <skill-dir>/scripts/inventory.py <root> --json "${TMPDIR:-/tmp}/inspect-codebase-inventory.json"
+python3 <skill-dir>/scripts/inventory.py <root> --json "${TMPDIR:-/tmp}/inspect-inventory.json"
 ```
 
 It prints a Markdown summary: shape (single project / monorepo / multi-project / polyglot), languages and size, tooling markers (CI, Docker, linters, version pins), declared workspaces and **workspace problems** (patterns that match nothing, members without manifests, crates or Go modules left out of the workspace), every package with its scripts/entry points/test count, the **internal dependency graph** (as Mermaid) with **cycles** and packages nothing depends on, **version drift** of external deps across packages, conflicting pins between manifests of one project, largest files, TODO/FIXME counts, git history and churn, and **possible secrets** (masked).

@@ -5,7 +5,7 @@ timeout_seconds: 1800
 allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, Bash, Agent]
 ---
 
-/inspect-codebase
+/inspect
 
 i just joined the team that owns harbor. go through the whole repo and tell me how it's put together + anything that looks off. dont install deps or run anything heavy.
 

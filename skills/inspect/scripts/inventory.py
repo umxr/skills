@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic inventory of a codebase, for the inspect-codebase skill.
+"""Deterministic inventory of a codebase, for the inspect skill.
 
 Usage:
     python3 inventory.py <repo-root> [--json <path>] [--max-files N]
