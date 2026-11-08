@@ -3,7 +3,7 @@ name: ts-monorepo-onboarding
 context:
   scaffold_script: place-files.sh
 expected_outcome: |
-  A written report on the Harbor pnpm + Turborepo monorepo (3 apps, 6 packages)
+  A CONTEXT.md and complete CODEBASE_REPORT.md for the Harbor pnpm + Turborepo monorepo (3 apps, 6 packages)
   that maps every package and how they depend on each other, gives the real
   build/run/test commands, and finds the planted problems: the ui <-> utils
   dependency cycle, react 18 vs 19 and zod drift across apps, the tools/*

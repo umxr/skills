@@ -3,7 +3,7 @@ name: polyglot-workspace-map
 context:
   scaffold_script: place-files.sh
 expected_outcome: |
-  A report on the polyglot relay repo that maps the Cargo workspace, the Go
+  A CONTEXT.md and complete CODEBASE_REPORT.md for the polyglot relay repo that maps the Cargo workspace, the Go
   workspace and the Python load generator, explains the runtime path
   (loadgen -> Go gateway -> auth middleware -> TCP to the Rust relay) and how
   to build/test each part. It finds the planted problems: crates/relay-proto

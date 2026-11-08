@@ -3,7 +3,7 @@ name: python-service-focused
 context:
   scaffold_script: place-files.sh
 expected_outcome: |
-  A report on the single-service ledgerline FastAPI app that does not invent a
+  A CONTEXT.md and complete CODEBASE_REPORT.md for the single-service ledgerline FastAPI app that does not invent a
   monorepo structure and goes deep on the reconciliation path. It names both
   callers (POST /v1/accounts/{id}/reconcile and the ledgerline CLI), the
   scoring rules and threshold, the planted correctness bugs (one invoice can be
