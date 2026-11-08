@@ -83,3 +83,4 @@ One-liners linking to the report.
 - Present tense, factual, stable. "The gateway forwards the raw body over TCP to `RELAY_ADDR`" — not "I found that…".
 - Every claim names a file. Tables and bullets over paragraphs.
 - Mask secrets exactly as in the report.
+- State-of-the-world claims ("fails as committed") carry the same confirmed/unconfirmed status as the report's matching finding, and link to it.

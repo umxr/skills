@@ -41,6 +41,12 @@ What wasn't inspected or couldn't be verified, and why. Questions for the team.
 
 Use exactly these: **High** = exploitable, leaked credentials, data loss or corruption, or it breaks prod, CI or the build; **Medium** = a real bug or risk with limited blast radius, or hygiene that will bite soon; **Low** = cleanup. Order by severity. Reserve High for what's genuinely urgent so the top of the list means something. Every finding cites `file:line`. Mark anything inferred but not confirmed as "(unconfirmed)".
 
+## Before you finish
+
+- Every High and Medium subsection has all five fields — Where, What, Why it matters, Evidence, Fix. Entries written last are the ones that tend to lose fields; check them.
+- Numbers you state (scores, sizes, counts, thresholds) are computed, not estimated — run the arithmetic or the code if you can.
+- Each finding's status (confirmed by reading / confirmed by running / unconfirmed) is the same everywhere it appears: the table, the subsection, and `CONTEXT.md`.
+
 ## Style
 
 - Say each thing once: a problem is explained in exactly one subsection; everywhere else refers to it by number.
