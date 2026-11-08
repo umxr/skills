@@ -50,6 +50,13 @@ The heavy work runs in agents, so your main conversation stays light. It only co
 
 Nested agents need Claude Code's default spawn depth (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` of 2 or more). With nesting turned off, the orchestrators do the specialist and implementer work themselves, one step at a time.
 
+### How `/inspect` works
+
+1. **Inventory.** A bundled, standard-library-only script (`scripts/inventory.py`) maps the repo in seconds. It finds languages and size, workspaces (pnpm/npm/yarn/bun, Turborepo, Nx, Lerna, Rush, Cargo, Go, uv, Gradle, Maven, Bazel), every package, and the internal dependency graph. It flags cycles, workspace globs that match nothing, crates or modules left out of their workspace, version drift, build/ship risks (missing lockfiles, `tsc` with no tsconfig, Docker `COPY . .` with no `.dockerignore`, CI that skips a language), possible secrets (masked) and git churn.
+2. **Inspect.** Claude reads each unit: purpose, entry points, dependencies, env vars, tests. On large repos, parallel subagents do this (`agents/unit-inspector.md`).
+3. **Connect.** A cross-cutting pass traces real request paths and checks the contracts between units. It also checks whether the repo actually builds as committed, sometimes by running a build in a throwaway copy. The repo itself is never modified.
+4. **Report.** Claude writes `CODEBASE_REPORT.md` at the repo root, not committed. It has a TL;DR ending in "Fix first", a layout table and Mermaid graph, request flows, build/run/test commands with a workaround if the build is broken, env vars, severity-ranked findings with `file:line` evidence, and a reading order. Secret values are always masked.
+
 ## Upstream skills
 
 Some skills come from other repos. This repo does not keep a copy of them. Each upstream repo is a git submodule in `vendor/`, and `skills/<skill-name>` is a symlink into it.
@@ -71,4 +78,7 @@ git add vendor && git commit -m "Update upstream skills"
 skills/<skill-name>/
   SKILL.md          # core instructions (loaded when the skill runs)
   references/       # detail loaded only when needed
+  agents/           # subagent briefs
+  scripts/          # bundled helpers
+  evals/            # test cases (claude plugin eval layout)
 ```
