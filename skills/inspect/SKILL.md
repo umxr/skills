@@ -102,8 +102,8 @@ Exact commands (from the repo, not guessed), what each needs (env vars, services
 ## Configuration & external services
 Env vars (name · where read · purpose), external systems, secrets handling.
 
-## Packages (multi-unit repos)
-A short subsection per unit: purpose, entry points, key files, notable issues.
+## Packages (multi-unit repos, only what the Layout table can't hold)
+Per unit, 2–4 lines max: entry points and the key files to read. Don't restate the purpose (it's in Layout) or its problems (they're in Findings). Skip a unit entirely if Layout already says everything useful.
 
 ## Focus: <focus>   (only if a focus was given)
 
@@ -118,7 +118,7 @@ A reading order for a newcomer (5–10 files), and who/what to ask about unclear
 What you didn't inspect or couldn't verify (and why), and questions for the team.
 ```
 
-Keep it skimmable: tables and short bullets over long prose; link files as relative paths (`apps/api/src/server.ts:12`).
+Keep it skimmable: tables and short bullets over long prose; link files as relative paths (`apps/api/src/server.ts:12`). **Say each thing once.** Explain a problem in exactly one place — the focus section if it's about the focus, otherwise Findings — and refer to it by number elsewhere (a Findings row for a focus bug is one line: "see Focus §3"). Repetition is the usual reason these reports bloat.
 
 ### 7. Reply
 
