@@ -84,5 +84,8 @@ skills/<skill-name>/
   references/       # detail loaded only when needed
   agents/           # subagent briefs
   scripts/          # bundled helpers
-  evals/            # test cases (claude plugin eval layout)
+evals/<skill-name>/ # test cases, kept outside the skill so installs stay clean
+evals/run.sh        # runs a skill's evals with `claude plugin eval`
 ```
+
+See [evals/README.md](evals/README.md) for running the tests.

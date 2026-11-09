@@ -15,8 +15,6 @@ The chat reply is short: the TL;DR, what to fix first, and where the files are.
 
 **Arguments:** `$ARGUMENTS`. A leading path is the root to inspect (default: the current working directory, or the git toplevel if you are inside one and the user said "the repo"). Anything else is a **focus**: a subsystem, a concern (security, performance, testability) or a goal ("I need to change X next sprint"). No focus means a general inspection.
 
-(This skill's own `evals/` folder holds test fixtures for developing the skill; ignore it when inspecting a codebase.)
-
 ## Principles (why the steps look the way they do)
 
 - **Evidence over impressions.** Every factual claim about the code should be traceable to a file (and line, for findings). Readers will act on this report; a confident wrong statement costs them more than an honest "not verified". Separate what you confirmed by reading from what you infer.
