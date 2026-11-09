@@ -20,7 +20,7 @@ evals/run.sh inspect                                   # every case, with and wi
 evals/run.sh inspect --case python-service-focused --runs 1
 ```
 
-`run.sh` links `evals/<skill-name>/` into the skill as `evals/` for the duration of the run (`claude plugin eval` only looks there) and removes the link afterwards. Extra arguments go straight to `claude plugin eval`. These are real, billed model runs.
+`run.sh` links `evals/<skill-name>/` into the skill as `evals/` for the duration of the run (`claude plugin eval` only looks there) and removes the link afterwards. It grants the gated tools the cases use (`Write`, `Edit`, `Bash`, `Agent`, `WebFetch`, `SendMessage`) and writes `aggregate-result.json` and `report.html` to `evals/results/<skill-name>/<timestamp>/`, which git ignores. Extra arguments go straight to `claude plugin eval`. These are real, billed model runs.
 
 ## Fixtures
 
