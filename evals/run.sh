@@ -7,7 +7,9 @@
 # Eval cases live in evals/<skill-name>/, outside the skill folder, so people
 # who install a skill get only the skill. `claude plugin eval` looks for cases
 # in <skill>/evals/, so this links them in for the run and removes the link
-# afterwards, even if the run fails or is interrupted.
+# afterwards, even if the run fails or is interrupted. Results go to
+# evals/results/<skill-name>/<timestamp>/ (git-ignored), because
+# `claude plugin eval` won't write through the link.
 #
 # These are real, billed model runs (with and without the skill), and each
 # case's scaffold script copies its fixture repo into the run's workspace.
@@ -28,5 +30,9 @@ link="$skill/evals"
 ln -s "../../evals/$name" "$link"
 trap 'rm -f "$link"' EXIT
 
+out="$repo/evals/results/$name/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$out"
+
 cd "$skill"
-claude plugin eval . --scaffold --allow-tools Write,Edit,Bash,Agent --no-publish "$@"
+claude plugin eval . --scaffold --allow-tools Write,Edit,Bash,Agent,WebFetch,SendMessage \
+  --output-dir "$out" --report "$out/report.html" --no-publish "$@"
