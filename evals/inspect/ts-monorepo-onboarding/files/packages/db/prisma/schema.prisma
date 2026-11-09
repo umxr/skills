@@ -1,0 +1,17 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Shipment {
+  id          String   @id @default(cuid())
+  origin      String
+  destination String
+  weightKg    Float
+  status      String   @default("created")
+  createdAt   DateTime @default(now())
+}

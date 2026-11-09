@@ -1,0 +1,9 @@
+[package]
+name = "relay-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { version = "1.0.190", features = ["derive"] }
+tokio = { version = "1.32", features = ["net", "rt-multi-thread", "macros"] }
+bytes = "1.5"

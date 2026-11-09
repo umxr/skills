@@ -1,0 +1,13 @@
+{
+  "name": "@harbor/db",
+  "version": "0.6.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate deploy",
+    "test": "vitest run",
+    "build": "tsc"
+  },
+  "dependencies": { "@prisma/client": "^5.16.0" },
+  "devDependencies": { "prisma": "^5.16.0", "vitest": "^1.6.0" }
+}

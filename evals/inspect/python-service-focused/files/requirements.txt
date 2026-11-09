@@ -1,0 +1,7 @@
+# pinned for the Docker image
+fastapi==0.95.2
+uvicorn==0.22.0
+sqlalchemy==1.4.49
+alembic==1.11.1
+pydantic==1.10.13
+httpx==0.24.1

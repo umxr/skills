@@ -1,0 +1,6 @@
+{
+  "name": "@harbor/legacy-auth",
+  "version": "0.0.9",
+  "main": "src/index.ts",
+  "dependencies": { "jsonwebtoken": "^8.5.1" }
+}

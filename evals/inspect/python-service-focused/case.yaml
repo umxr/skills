@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: python-service-focused
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  A CONTEXT.md and complete CODEBASE_REPORT.md for the single-service ledgerline FastAPI app that does not invent a
+  monorepo structure and goes deep on the reconciliation path. It names both
+  callers (POST /v1/accounts/{id}/reconcile and the ledgerline CLI), the
+  scoring rules and threshold, the planted correctness bugs (one invoice can be
+  matched by several lines in a run; ties depend on unordered query results;
+  amounts parsed via float), the bank client with no timeout, the hard-coded
+  SECRET_KEY fallback, the pyproject vs requirements.txt version conflict that
+  means Docker ships pydantic 1 / SQLAlchemy 1.4, and that only matching.py is
+  tested (reconcile_account and the routes are not). It ends with a concrete
+  pre-change checklist. No source file is changed.
